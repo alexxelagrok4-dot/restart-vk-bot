@@ -1,0 +1,13 @@
+services:
+  - type: worker
+    name: re-start-vk-bot
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: VK_ACCESS_TOKEN
+        sync: false
+      - key: VK_GROUP_ID
+        sync: false
+      - key: ADMIN_PEER_ID
+        sync: false
