@@ -20,7 +20,6 @@ ADMIN_PEER_ID = int(os.getenv("ADMIN_PEER_ID", "0") or "0")
 STATE_FILE = os.getenv("STATE_FILE", "state.json")
 LEADS_FILE = os.getenv("LEADS_FILE", "leads.jsonl")
 
-
 if not TOKEN:
     raise RuntimeError("VK_ACCESS_TOKEN is required")
 if not GROUP_ID:
@@ -32,17 +31,17 @@ def log(message: str) -> None:
 
 
 def vk_call(method: str, params: dict | None = None) -> dict:
-    params = dict(params or {})
-    params["access_token"] = TOKEN
-    params["v"] = API_VERSION
-    data = urllib.parse.urlencode(params).encode("utf-8")
+    payload = dict(params or {})
+    payload["access_token"] = TOKEN
+    payload["v"] = API_VERSION
+    data = urllib.parse.urlencode(payload).encode("utf-8")
     req = urllib.request.Request("https://api.vk.com/method/" + method, data=data)
     with urllib.request.urlopen(req, timeout=30) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    if "error" in payload:
-        err = payload["error"]
+        result = json.loads(response.read().decode("utf-8"))
+    if "error" in result:
+        err = result["error"]
         raise RuntimeError(f"VK API {method}: {err.get('error_code')} {err.get('error_msg')}")
-    return payload["response"]
+    return result["response"]
 
 
 def keyboard(buttons: list[list[tuple[str, str]]], one_time: bool = False) -> str:
@@ -72,9 +71,9 @@ def keyboard(buttons: list[list[tuple[str, str]]], one_time: bool = False) -> st
 MAIN_KEYBOARD = keyboard(
     [
         [("Записаться на диагностику", "diagnostic")],
-        [("Как всё работает", "how"), ("Уровни", "levels")],
-        [("Цены", "price"), ("Адрес", "address")],
-        [("Мини-группы", "groups"), ("Персонально", "personal")],
+        [("Как всё работает", "how"), ("Форматы", "formats")],
+        [("Стоимость", "price"), ("Адрес", "address")],
+        [("Персонально", "personal"), ("Мини-группы", "groups")],
     ]
 )
 
@@ -82,38 +81,36 @@ MAIN_KEYBOARD = keyboard(
 FAQ = {
     "how": (
         "Как работает re:старт:\n\n"
-        "1. Бесплатная диагностика.\n"
-        "2. Определение стартовой точки.\n"
-        "3. Подбор уровня сопровождения.\n"
-        "4. Маршрут на 4 недели.\n"
-        "5. Контроль техники и прогресса.\n"
-        "6. Следующий этап.\n\n"
+        "1. Сначала — диагностика: цель, самочувствие, ограничения, привычный ритм.\n"
+        "2. Потом — понятный маршрут на 4 недели.\n"
+        "3. Дальше — тренировки с контролем техники и прогресса.\n"
+        "4. В конце этапа — корректировка маршрута.\n\n"
         "Вы задаёте цель — мы создаём маршрут."
     ),
-    "levels": (
-        "У нас 3 уровня:\n\n"
-        "Базовый — 12 мини-групп в месяц.\n"
-        "Средний — 4 персональные + 8 мини-групп.\n"
-        "Продвинутый — 12 персональных + доступ к мини-группам.\n\n"
-        "Уровень лучше подбирать после диагностики."
+    "formats": (
+        "Форматы re:старт:\n\n"
+        "• персональное сопровождение;\n"
+        "• мини-группы;\n"
+        "• комбинированный маршрут;\n"
+        "• диагностика и подбор уровня нагрузки.\n\n"
+        "Формат лучше выбирать после диагностики — так безопаснее и точнее."
     ),
     "price": (
-        "Стоимость зависит от уровня сопровождения. "
-        "Чтобы не предлагать неподходящий формат, мы начинаем с бесплатной диагностики и после неё рекомендуем маршрут.\n\n"
-        "Напишите «Записаться» — соберу заявку."
+        "Стоимость зависит от формата сопровождения и частоты занятий.\n\n"
+        "Чтобы не предлагать абонемент вслепую, мы сначала проводим диагностику, "
+        "а затем рекомендуем подходящий маршрут."
     ),
     "address": (
-        "Для теста здесь стоит заглушка. В боевом сообществе добавим адрес клуба, ориентиры, график и ссылку на карты.\n\n"
-        "Пока можно проверить сценарий записи: напишите «Записаться»."
+        "Адрес и удобное время визита уточнит администратор при записи.\n\n"
+        "Напишите «Диагностика» — я соберу заявку."
     ),
     "groups": (
-        "Мини-группы — до 4 человек.\n\n"
-        "Так тренер видит каждого, контролирует технику и адаптирует упражнения под уровень. "
-        "Это камернее и спокойнее, чем обычные групповые тренировки."
+        "Мини-группы — это формат, где тренер успевает видеть каждого, "
+        "контролировать технику и адаптировать упражнения под уровень."
     ),
     "personal": (
-        "Персональный формат подходит, если нужна максимальная индивидуализация: конкретная цель, ограничения, приватность или быстрый старт.\n\n"
-        "Можно выбрать персональный уровень или комбинировать персональные тренировки с мини-группами."
+        "Персональный формат подходит, если нужна максимальная индивидуализация: "
+        "конкретная цель, ограничения, приватность или быстрый старт."
     ),
 }
 
@@ -127,7 +124,7 @@ class Lead:
     limits: str
     time: str
     phone: str
-    source: str = "VK cloud bot"
+    source: str = "VK bot"
 
 
 def normalize(text: str) -> str:
@@ -136,15 +133,15 @@ def normalize(text: str) -> str:
 
 def load_state() -> dict:
     try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        with open(STATE_FILE, "r", encoding="utf-8") as file:
+            return json.load(file)
     except FileNotFoundError:
         return {}
 
 
 def save_state(state: dict) -> None:
-    with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(state, f, ensure_ascii=False, indent=2)
+    with open(STATE_FILE, "w", encoding="utf-8") as file:
+        json.dump(state, file, ensure_ascii=False, indent=2)
 
 
 def send(peer_id: int, text: str, kb: str | None = MAIN_KEYBOARD) -> None:
@@ -182,7 +179,7 @@ def start_lead(peer_id: int, state: dict) -> None:
     save_state(state)
     send(
         peer_id,
-        "Отлично, запишем вас на бесплатную диагностику.\n\n"
+        "Отлично, запишем вас на диагностику.\n\n"
         "Вопрос 1 из 5: как к вам обращаться?",
         kb=None,
     )
@@ -202,7 +199,12 @@ def handle_lead(peer_id: int, text: str, state: dict) -> None:
     if step == "name":
         data["name"] = text.strip()
         user["step"] = "goal"
-        send(peer_id, "Вопрос 2 из 5: какая главная цель?\n\nНапример: вес, тонус, спина, энергия, регулярность.", kb=None)
+        send(
+            peer_id,
+            "Вопрос 2 из 5: какая главная цель?\n\n"
+            "Например: тонус, спина, вес, энергия, регулярность.",
+            kb=None,
+        )
     elif step == "goal":
         data["goal"] = text.strip()
         user["step"] = "limits"
@@ -226,8 +228,8 @@ def handle_lead(peer_id: int, text: str, state: dict) -> None:
             time=data.get("time", ""),
             phone=data.get("phone", ""),
         )
-        with open(LEADS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(asdict(lead), ensure_ascii=False) + "\n")
+        with open(LEADS_FILE, "a", encoding="utf-8") as file:
+            file.write(json.dumps(asdict(lead), ensure_ascii=False) + "\n")
         notify_admin(lead)
         state.pop(str(peer_id), None)
         save_state(state)
@@ -236,11 +238,11 @@ def handle_lead(peer_id: int, text: str, state: dict) -> None:
             "Спасибо. Заявка на диагностику сохранена.\n\n"
             "Администратор свяжется с вами, уточнит удобное время и ответит на вопросы.",
         )
-        log(f"lead_saved peer_id={peer_id} name={lead.name!r} goal={lead.goal!r}")
+        log(f"lead_saved peer_id={peer_id} name={lead.name!r}")
     else:
         state.pop(str(peer_id), None)
         save_state(state)
-        send(peer_id, "Сценарий сброшен. Напишите «Записаться», чтобы начать заново.")
+        send(peer_id, "Сценарий сброшен. Напишите «Диагностика», чтобы начать заново.")
 
 
 def handle_message(peer_id: int, text: str, state: dict) -> None:
@@ -248,33 +250,35 @@ def handle_message(peer_id: int, text: str, state: dict) -> None:
         handle_lead(peer_id, text, state)
         return
 
-    n = normalize(text)
-    if any(word in n for word in ["запис", "диагностик", "старт"]):
+    normalized = normalize(text)
+    if any(word in normalized for word in ["запис", "диагностик", "старт"]):
         start_lead(peer_id, state)
-    elif any(word in n for word in ["как", "работ", "маршрут"]):
+    elif any(word in normalized for word in ["как", "работ", "маршрут"]):
         send(peer_id, FAQ["how"])
-    elif any(word in n for word in ["уров", "тариф", "формат"]):
-        send(peer_id, FAQ["levels"])
-    elif any(word in n for word in ["цен", "стоим", "сколько"]):
+    elif any(word in normalized for word in ["формат", "уров", "тариф"]):
+        send(peer_id, FAQ["formats"])
+    elif any(word in normalized for word in ["цен", "стоим", "сколько"]):
         send(peer_id, FAQ["price"])
-    elif any(word in n for word in ["адрес", "где", "карта"]):
+    elif any(word in normalized for word in ["адрес", "где", "карта"]):
         send(peer_id, FAQ["address"])
-    elif any(word in n for word in ["мини", "групп"]):
+    elif any(word in normalized for word in ["мини", "групп"]):
         send(peer_id, FAQ["groups"])
-    elif any(word in n for word in ["персон", "индивиду"]):
+    elif any(word in normalized for word in ["персон", "индивиду"]):
         send(peer_id, FAQ["personal"])
-    elif any(word in n for word in ["привет", "здрав", "меню", "начать"]):
+    elif any(word in normalized for word in ["привет", "здрав", "меню", "начать"]):
         send(
             peer_id,
             "Здравствуйте. Это re:старт.\n\n"
-            "Мы помогаем женщинам 35–50+ возвращать форму, тонус и энергию через диагностику, маршрут на 4 недели и камерные тренировки без толпы.\n\n"
-            "Выберите кнопку ниже или напишите «Записаться».",
+            "Мы помогаем вернуться к движению, тонусу и здоровью через диагностику, "
+            "понятный маршрут и сопровождение тренера.\n\n"
+            "Выберите кнопку ниже или напишите «Диагностика».",
         )
     else:
         send(
             peer_id,
             "Я могу помочь с записью на диагностику и ответить на ключевые вопросы.\n\n"
-            "Напишите «Записаться», «Цены», «Уровни», «Мини-группы», «Персонально» или «Адрес».",
+            "Напишите «Диагностика», «Стоимость», «Форматы», «Мини-группы», "
+            "«Персонально» или «Адрес».",
         )
 
 
@@ -291,13 +295,15 @@ def configure_long_poll() -> None:
     log("long_poll_settings=enabled")
 
 
+def get_long_poll_server() -> tuple[str, str, str]:
+    server = vk_call("groups.getLongPollServer", {"group_id": GROUP_ID})
+    return server["server"], server["key"], server["ts"]
+
+
 def main() -> None:
     configure_long_poll()
     state = load_state()
-    server = vk_call("groups.getLongPollServer", {"group_id": GROUP_ID})
-    key = server["key"]
-    server_url = server["server"]
-    ts = server["ts"]
+    server_url, key, ts = get_long_poll_server()
     log(f"bot_started group_id={GROUP_ID}")
 
     while True:
@@ -309,18 +315,15 @@ def main() -> None:
             ).json()
             if "failed" in response:
                 log(f"longpoll_failed={response}")
-                server = vk_call("groups.getLongPollServer", {"group_id": GROUP_ID})
-                key = server["key"]
-                server_url = server["server"]
-                ts = server["ts"]
+                server_url, key, ts = get_long_poll_server()
                 continue
             ts = response["ts"]
             for update in response.get("updates", []):
                 if update.get("type") != "message_new":
                     continue
-                msg = update.get("object", {}).get("message", {})
-                peer_id = int(msg.get("peer_id"))
-                text = msg.get("text", "")
+                message = update.get("object", {}).get("message", {})
+                peer_id = int(message.get("peer_id"))
+                text = message.get("text", "")
                 if not text:
                     continue
                 log(f"message peer_id={peer_id} text={text[:80]!r}")
