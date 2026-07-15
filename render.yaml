@@ -1,5 +1,5 @@
 services:
-  - type: worker
+  - type: web
     name: re-start-vk-bot
     env: docker
     plan: free

@@ -6,5 +6,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY vk_re_start_bot_cloud.py .
+COPY bot_web_service.py .
 
-CMD ["python", "vk_re_start_bot_cloud.py"]
+CMD ["python", "bot_web_service.py"]
