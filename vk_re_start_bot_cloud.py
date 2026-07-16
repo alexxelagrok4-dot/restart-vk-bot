@@ -152,7 +152,18 @@ def send(peer_id: int, text: str, kb: str | None = MAIN_KEYBOARD) -> None:
     }
     if kb:
         params["keyboard"] = kb
-    vk_call("messages.send", params)
+    try:
+        vk_call("messages.send", params)
+    except RuntimeError as exc:
+        if kb and "912" in str(exc):
+            # Community has "bot capabilities" disabled in VK settings, so keyboards are
+            # rejected outright. Fall back to plain text so replies still reach the user.
+            log(f"keyboard_rejected peer_id={peer_id}, retrying without keyboard")
+            params.pop("keyboard")
+            params["random_id"] = random.randint(1, 2_000_000_000)
+            vk_call("messages.send", params)
+        else:
+            raise
 
 
 def notify_admin(lead: Lead) -> None:
